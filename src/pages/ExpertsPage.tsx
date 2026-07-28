@@ -1,7 +1,7 @@
 import { type FormEvent, useCallback, useEffect, useState } from "react";
-import { Search, Check, X, Plus, Star, Pencil } from "lucide-react";
-import { apiGet, apiGetPaginated, apiPost, apiPut, getErrorMessage, getFieldErrors } from "@/lib/api";
-import type { Category, Expert, Pagination as PaginationType, PlatformSettings, User } from "@/types";
+import { Search, Check, X, Star, Pencil } from "lucide-react";
+import { apiGet, apiGetPaginated, apiPut, getErrorMessage, getFieldErrors } from "@/lib/api";
+import type { Expert, Pagination as PaginationType, PlatformSettings, User } from "@/types";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import { Pagination } from "@/components/ui/Pagination";
@@ -9,24 +9,40 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
 import { Input, Field } from "@/components/ui/Input";
-import { avatarFor, formatINR, normalizePhone, userName, userNameParts } from "@/lib/utils";
+import { avatarFor, formatDate, formatINR, userName, userNameParts } from "@/lib/utils";
 
 function expertUser(e: Expert): User | null {
   return e.userId && typeof e.userId !== "string" ? e.userId : null;
 }
 
-function categoryIds(e: Expert): string[] {
-  return (e.categories || []).map((c) => (typeof c === "string" ? c : c._id));
+function formatAddress(u: User | null): string {
+  if (!u) return "—";
+  const parts = [u.city, u.state, u.country].filter(Boolean);
+  return parts.length ? parts.join(", ") : "—";
 }
 
-const EMPTY_CREATE = {
-  mobile: "",
+type EditForm = {
+  name: string;
+  mobile: string;
+  pricePerMinute: string;
+  commissionPercent: string;
+  accountName: string;
+  accountNumber: string;
+  ifscCode: string;
+  bankName: string;
+  upiId: string;
+};
+
+const EMPTY_EDIT: EditForm = {
   name: "",
-  bio: "",
-  experience: "1",
-  languages: "English",
-  pricePerMinute: "10",
-  commissionPercent: "20",
+  mobile: "",
+  pricePerMinute: "",
+  commissionPercent: "",
+  accountName: "",
+  accountNumber: "",
+  ifscCode: "",
+  bankName: "",
+  upiId: "",
 };
 
 export function ExpertsPage() {
@@ -38,27 +54,17 @@ export function ExpertsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [categories, setCategories] = useState<Category[]>([]);
   const [priceLimits, setPriceLimits] = useState({ min: 5, max: 100, default: 10, commission: 20 });
   const [approveError, setApproveError] = useState<string | null>(null);
 
-  // approve/reject modal
   const [target, setTarget] = useState<Expert | null>(null);
   const [price, setPrice] = useState("");
   const [commission, setCommission] = useState("");
   const [rejectionReason, setRejectionReason] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // create modal
-  const [createOpen, setCreateOpen] = useState(false);
-  const [form, setForm] = useState(EMPTY_CREATE);
-  const [createCats, setCreateCats] = useState<string[]>([]);
-  const [createErrors, setCreateErrors] = useState<Record<string, string>>({});
-
-  // edit modal
   const [editTarget, setEditTarget] = useState<Expert | null>(null);
-  const [editForm, setEditForm] = useState(EMPTY_CREATE);
-  const [editCats, setEditCats] = useState<string[]>([]);
+  const [editForm, setEditForm] = useState<EditForm>(EMPTY_EDIT);
   const [editErrors, setEditErrors] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
@@ -85,22 +91,18 @@ export function ExpertsPage() {
   }, [load]);
 
   useEffect(() => {
-    apiGet<Category[]>("/admin/categories")
-      .then((res) => setCategories(res.data || []))
-      .catch(() => setCategories([]));
-
     apiGet<PlatformSettings>("/admin/settings")
       .then((res) => {
         const s = res.data || {};
         const min = Number(s.min_price_per_minute);
         const max = Number(s.max_price_per_minute);
         const def = Number(s.default_price_per_minute);
-        const commission = Number(s.default_commission_percent);
+        const commissionVal = Number(s.default_commission_percent);
         setPriceLimits({
           min: Number.isFinite(min) ? min : 5,
           max: Number.isFinite(max) ? max : 100,
           default: Number.isFinite(def) ? def : 10,
-          commission: Number.isFinite(commission) ? commission : 20,
+          commission: Number.isFinite(commissionVal) ? commissionVal : 20,
         });
       })
       .catch(() => undefined);
@@ -144,118 +146,70 @@ export function ExpertsPage() {
     }
   };
 
-  const toggleCat = (
-    id: string,
-    setter: React.Dispatch<React.SetStateAction<string[]>>
-  ) => {
-    setter((prev) => (prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]));
-  };
-
-  const validateExpert = (
-    f: typeof EMPTY_CREATE,
-    cats: string[],
-    { requireMobile }: { requireMobile: boolean }
-  ): Record<string, string> => {
+  const validateEdit = (f: EditForm): Record<string, string> => {
     const errs: Record<string, string> = {};
-    if (!f.name.trim() || f.name.trim().length < 2)
+    if (!f.name.trim() || f.name.trim().length < 2) {
       errs.name = "Name must be at least 2 characters";
-    if (requireMobile && !/^\+?[1-9]\d{9,14}$/.test(normalizePhone(f.mobile)))
-      errs.mobile = "Enter a valid mobile number";
-    if (cats.length === 0) {
-      /* categories optional after pivot */
     }
-    if (f.experience !== "" && Number(f.experience) < 0)
-      errs.experience = "Experience cannot be negative";
-    const price = Number(f.pricePerMinute);
-    if (f.pricePerMinute === "" || Number.isNaN(price)) {
+    const priceVal = Number(f.pricePerMinute);
+    if (f.pricePerMinute === "" || Number.isNaN(priceVal)) {
       errs.pricePerMinute = "Enter a valid price";
-    } else if (price < priceLimits.min || price > priceLimits.max) {
+    } else if (priceVal < priceLimits.min || priceVal > priceLimits.max) {
       errs.pricePerMinute = `Price must be between ₹${priceLimits.min} and ₹${priceLimits.max} per minute`;
     }
-    const commission = Number(f.commissionPercent);
-    if (Number.isNaN(commission) || commission < 0 || commission > 100)
+    const commissionVal = Number(f.commissionPercent);
+    if (Number.isNaN(commissionVal) || commissionVal < 0 || commissionVal > 100) {
       errs.commissionPercent = "Commission must be between 0 and 100";
-    return errs;
-  };
-
-  const openCreate = () => {
-    setForm({
-      ...EMPTY_CREATE,
-      pricePerMinute: String(priceLimits.default),
-      commissionPercent: String(priceLimits.commission),
-    });
-    setCreateCats([]);
-    setCreateErrors({});
-    setError(null);
-    setCreateOpen(true);
-  };
-
-  const createExpert = async (e: FormEvent) => {
-    e.preventDefault();
-    const errs = validateExpert(form, createCats, { requireMobile: true });
-    setCreateErrors(errs);
-    if (Object.keys(errs).length > 0) return;
-    setSaving(true);
-    setError(null);
-    try {
-      await apiPost("/admin/experts", {
-        mobile: normalizePhone(form.mobile),
-        name: form.name,
-        bio: form.bio || undefined,
-        experience: Number(form.experience),
-        categories: createCats,
-        languages: form.languages.split(",").map((s) => s.trim()).filter(Boolean),
-        pricePerMinute: Number(form.pricePerMinute),
-        commissionPercent: Number(form.commissionPercent),
-      });
-      setCreateOpen(false);
-      setForm(EMPTY_CREATE);
-      setCreateCats([]);
-      setCreateErrors({});
-      setPage(1);
-      load();
-    } catch (e) {
-      const fe = getFieldErrors(e);
-      if (Object.keys(fe).length === 0) fe._general = getErrorMessage(e);
-      setCreateErrors(fe);
-    } finally {
-      setSaving(false);
     }
+    return errs;
   };
 
   const openEdit = (e: Expert) => {
     const u = expertUser(e);
+    const bank = e.bankDetails;
     setEditErrors({});
     setEditTarget(e);
     setEditForm({
       mobile: e.mobile || u?.phone || "",
       name: u?.name || "",
-      bio: e.bio || "",
-      experience: String(e.experience ?? 0),
-      languages: (e.languages || []).join(", ") || "English",
       pricePerMinute: String(e.pricePerMinute ?? ""),
       commissionPercent: String(e.commissionPercent ?? ""),
+      accountName: bank?.accountName || "",
+      accountNumber: bank?.accountNumber || "",
+      ifscCode: bank?.ifscCode || "",
+      bankName: bank?.bankName || "",
+      upiId: bank?.upiId || "",
     });
-    setEditCats(categoryIds(e));
   };
 
   const saveEdit = async (ev: FormEvent) => {
     ev.preventDefault();
     if (!editTarget) return;
-    const errs = validateExpert(editForm, editCats, { requireMobile: false });
+    const errs = validateEdit(editForm);
     setEditErrors(errs);
     if (Object.keys(errs).length > 0) return;
     setSaving(true);
     setError(null);
     try {
+      const bankPayload = {
+        accountName: editForm.accountName.trim(),
+        accountNumber: editForm.accountNumber.trim(),
+        ifscCode: editForm.ifscCode.trim(),
+        bankName: editForm.bankName.trim(),
+        upiId: editForm.upiId.trim() || undefined,
+      };
+      const hasBank = Boolean(
+        bankPayload.accountName ||
+          bankPayload.accountNumber ||
+          bankPayload.ifscCode ||
+          bankPayload.bankName ||
+          bankPayload.upiId
+      );
       await apiPut(`/admin/experts/${editTarget._id}`, {
         name: editForm.name || undefined,
-        bio: editForm.bio,
-        experience: Number(editForm.experience),
-        categories: editCats,
-        languages: editForm.languages.split(",").map((s) => s.trim()).filter(Boolean),
         pricePerMinute: Number(editForm.pricePerMinute),
         commissionPercent: Number(editForm.commissionPercent),
+        ...(hasBank ? { bankDetails: bankPayload } : {}),
       });
       setEditTarget(null);
       setEditErrors({});
@@ -338,64 +292,21 @@ export function ExpertsPage() {
     },
   ];
 
-  const clearErr = (setter: React.Dispatch<React.SetStateAction<Record<string, string>>>, k: string) =>
-    setter((prev) => {
+  const setEditField = (k: keyof EditForm, v: string) => {
+    setEditForm((f) => ({ ...f, [k]: v }));
+    setEditErrors((prev) => {
       if (!prev[k]) return prev;
       const next = { ...prev };
       delete next[k];
       return next;
     });
-
-  const setField = (k: keyof typeof form, v: string) => {
-    setForm((f) => ({ ...f, [k]: v }));
-    clearErr(setCreateErrors, k);
   };
-  const setEditField = (k: keyof typeof editForm, v: string) => {
-    setEditForm((f) => ({ ...f, [k]: v }));
-    clearErr(setEditErrors, k);
-  };
-
-  const CategoryPicker = ({
-    selected,
-    onToggle,
-  }: {
-    selected: string[];
-    onToggle: (id: string) => void;
-  }) => (
-    <div className="flex flex-wrap gap-2">
-      {categories.length === 0 && (
-        <span className="text-xs text-muted">No categories found. Add one under CMS first.</span>
-      )}
-      {categories.map((c) => {
-        const active = selected.includes(c._id);
-        return (
-          <button
-            key={c._id}
-            type="button"
-            onClick={() => onToggle(c._id)}
-            className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition ${
-              active
-                ? "border-primary bg-primary text-white"
-                : "border-border bg-white text-ink-soft hover:bg-surface"
-            }`}
-          >
-            {c.name}
-          </button>
-        );
-      })}
-    </div>
-  );
 
   return (
     <div>
       <PageHeader
         title="Staff"
-        subtitle="Manage staff profiles — create, approve, and set rates"
-        actions={
-          <Button size="sm" onClick={openCreate}>
-            <Plus className="h-4 w-4" /> Add staff
-          </Button>
-        }
+        subtitle="Review applications, set rates, and manage payout bank details"
       />
 
       <div className="mb-4 flex flex-wrap gap-2">
@@ -450,7 +361,6 @@ export function ExpertsPage() {
       <DataTable columns={columns} rows={rows} rowKey={(e) => e._id} loading={loading} />
       <Pagination pagination={pagination} onPageChange={setPage} loading={loading} />
 
-      {/* Review modal */}
       <Modal
         open={!!target}
         onClose={() => setTarget(null)}
@@ -506,86 +416,6 @@ export function ExpertsPage() {
         </Field>
       </Modal>
 
-      {/* Create modal */}
-      <Modal
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
-        title="Add new expert"
-        footer={
-          <>
-            <Button variant="ghost" onClick={() => setCreateOpen(false)}>
-              Cancel
-            </Button>
-            <Button form="create-expert" type="submit" loading={saving}>
-              Create expert
-            </Button>
-          </>
-        }
-      >
-        <form id="create-expert" onSubmit={createExpert} className="space-y-3" noValidate>
-          {createErrors._general && (
-            <p className="rounded-lg bg-danger/10 px-3 py-2 text-sm font-medium text-danger">
-              {createErrors._general}
-            </p>
-          )}
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Name" error={createErrors.name}>
-              <Input value={form.name} onChange={(e) => setField("name", e.target.value)} />
-            </Field>
-            <Field label="Mobile" error={createErrors.mobile}>
-              <Input value={form.mobile} onChange={(e) => setField("mobile", e.target.value)} />
-            </Field>
-          </div>
-          <Field label="Bio" error={createErrors.bio}>
-            <Input value={form.bio} onChange={(e) => setField("bio", e.target.value)} />
-          </Field>
-          <Field label="Categories" error={createErrors.categories}>
-            <CategoryPicker
-              selected={createCats}
-              onToggle={(id) => {
-                toggleCat(id, setCreateCats);
-                clearErr(setCreateErrors, "categories");
-              }}
-            />
-          </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Experience (yrs)" error={createErrors.experience}>
-              <Input
-                type="number"
-                value={form.experience}
-                onChange={(e) => setField("experience", e.target.value)}
-              />
-            </Field>
-            <Field label="Languages (comma-sep)" error={createErrors.languages}>
-              <Input
-                value={form.languages}
-                onChange={(e) => setField("languages", e.target.value)}
-              />
-            </Field>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Price / min (₹)" error={createErrors.pricePerMinute}>
-              <Input
-                type="number"
-                min={priceLimits.min}
-                max={priceLimits.max}
-                value={form.pricePerMinute}
-                onChange={(e) => setField("pricePerMinute", e.target.value)}
-              />
-              <span className="text-xs text-muted">{priceHint}</span>
-            </Field>
-            <Field label="Commission (%)" error={createErrors.commissionPercent}>
-              <Input
-                type="number"
-                value={form.commissionPercent}
-                onChange={(e) => setField("commissionPercent", e.target.value)}
-              />
-            </Field>
-          </div>
-        </form>
-      </Modal>
-
-      {/* Edit modal */}
       <Modal
         open={!!editTarget}
         onClose={() => setEditTarget(null)}
@@ -607,8 +437,48 @@ export function ExpertsPage() {
               {editErrors._general}
             </p>
           )}
+
+          {(() => {
+            const u = expertUser(editTarget || ({} as Expert));
+            return (
+              <div className="rounded-xl border border-border bg-surface/60 p-3 space-y-2">
+                <h3 className="text-sm font-bold text-ink">Staff profile</h3>
+                <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+                  <div>
+                    <p className="text-xs text-muted">Real name</p>
+                    <p className="font-medium text-ink">{u?.realName || "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted">Display name</p>
+                    <p className="font-medium text-ink">{u?.name || "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted">Date of birth</p>
+                    <p className="font-medium text-ink">{formatDate(u?.dob)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted">Gender</p>
+                    <p className="font-medium text-ink capitalize">{u?.gender || "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted">Email</p>
+                    <p className="font-medium text-ink break-all">{u?.email || "—"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted">Mobile</p>
+                    <p className="font-medium text-ink">{editForm.mobile || "—"}</p>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-xs text-muted">Address</p>
+                    <p className="font-medium text-ink">{formatAddress(u)}</p>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Name" error={editErrors.name}>
+            <Field label="Display name" error={editErrors.name}>
               <Input
                 value={editForm.name}
                 onChange={(e) => setEditField("name", e.target.value)}
@@ -616,33 +486,6 @@ export function ExpertsPage() {
             </Field>
             <Field label="Mobile">
               <Input value={editForm.mobile} disabled />
-            </Field>
-          </div>
-          <Field label="Bio" error={editErrors.bio}>
-            <Input value={editForm.bio} onChange={(e) => setEditField("bio", e.target.value)} />
-          </Field>
-          <Field label="Categories" error={editErrors.categories}>
-            <CategoryPicker
-              selected={editCats}
-              onToggle={(id) => {
-                toggleCat(id, setEditCats);
-                clearErr(setEditErrors, "categories");
-              }}
-            />
-          </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Experience (yrs)" error={editErrors.experience}>
-              <Input
-                type="number"
-                value={editForm.experience}
-                onChange={(e) => setEditField("experience", e.target.value)}
-              />
-            </Field>
-            <Field label="Languages (comma-sep)" error={editErrors.languages}>
-              <Input
-                value={editForm.languages}
-                onChange={(e) => setEditField("languages", e.target.value)}
-              />
             </Field>
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -661,6 +504,41 @@ export function ExpertsPage() {
                 type="number"
                 value={editForm.commissionPercent}
                 onChange={(e) => setEditField("commissionPercent", e.target.value)}
+              />
+            </Field>
+          </div>
+
+          <h3 className="pt-2 text-sm font-bold text-ink">Bank details <span className="font-normal text-muted">(optional)</span></h3>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Account name" error={editErrors.accountName}>
+              <Input
+                value={editForm.accountName}
+                onChange={(e) => setEditField("accountName", e.target.value)}
+              />
+            </Field>
+            <Field label="Account number" error={editErrors.accountNumber}>
+              <Input
+                value={editForm.accountNumber}
+                onChange={(e) => setEditField("accountNumber", e.target.value)}
+              />
+            </Field>
+            <Field label="IFSC" error={editErrors.ifscCode}>
+              <Input
+                value={editForm.ifscCode}
+                onChange={(e) => setEditField("ifscCode", e.target.value)}
+              />
+            </Field>
+            <Field label="Bank name" error={editErrors.bankName}>
+              <Input
+                value={editForm.bankName}
+                onChange={(e) => setEditField("bankName", e.target.value)}
+              />
+            </Field>
+            <Field label="UPI ID" error={editErrors.upiId}>
+              <Input
+                value={editForm.upiId}
+                onChange={(e) => setEditField("upiId", e.target.value)}
+                placeholder="name@upi"
               />
             </Field>
           </div>

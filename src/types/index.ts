@@ -46,10 +46,15 @@ export interface User {
   name: string;
   /** Private legal / signup name — admin can see both real + display */
   realName?: string;
+  dob?: string;
   phone?: string;
   email?: string;
   avatar?: string;
   role: UserRole;
+  gender?: string;
+  country?: string;
+  city?: string;
+  state?: string;
   isVerified?: boolean;
   isBlocked?: boolean;
   walletBalance?: number;
@@ -208,7 +213,11 @@ export interface Banner {
   _id: string;
   title: string;
   imageUrl: string;
+  videoUrl?: string;
+  mediaType?: "image" | "video";
   link?: string;
+  tagline?: string;
+  badge?: string;
   position: BannerPosition;
   isActive?: boolean;
   startDate?: string;

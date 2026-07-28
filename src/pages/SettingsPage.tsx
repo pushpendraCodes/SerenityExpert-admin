@@ -21,6 +21,14 @@ const PRICING_KEYS: { key: string; label: string; hint: string; step?: string }[
   { key: "max_price_per_minute", label: "Maximum price / minute (₹)", hint: "Upper pricing guardrail" },
 ];
 
+const STAFF_KEYS: { key: string; label: string; hint: string }[] = [
+  {
+    key: "staff_application_fee",
+    label: "Staff one-time payment (₹)",
+    hint: "Amount charged when a user activates the call button / applies to become staff",
+  },
+];
+
 const RETENTION_KEYS: { key: string; label: string; hint: string }[] = [
   {
     key: "chat_retention_days",
@@ -39,7 +47,7 @@ const RETENTION_KEYS: { key: string; label: string; hint: string }[] = [
   },
 ];
 
-const ALL_KEYS = [...PRICING_KEYS, ...RETENTION_KEYS];
+const ALL_KEYS = [...PRICING_KEYS, ...STAFF_KEYS, ...RETENTION_KEYS];
 
 export function SettingsPage() {
   const [values, setValues] = useState<PlatformSettings>({});
@@ -81,6 +89,17 @@ export function SettingsPage() {
       }
     }
 
+    const fee = Number(values.staff_application_fee);
+    if (
+      values.staff_application_fee !== undefined &&
+      values.staff_application_fee !== "" &&
+      (!Number.isFinite(fee) || fee < 0)
+    ) {
+      setError("Staff one-time payment: enter a valid amount (0 or more)");
+      setSaving(false);
+      return;
+    }
+
     try {
       const settings = ALL_KEYS.map((k) => ({ key: k.key, value: String(values[k.key] ?? "") })).filter(
         (s) => s.value !== ""
@@ -98,7 +117,7 @@ export function SettingsPage() {
     <div>
       <PageHeader
         title="Settings"
-        subtitle="Commission, pricing, and data retention rules"
+        subtitle="Commission, staff fees, pricing, and data retention rules"
       />
 
       {error && <p className="mb-3 text-sm text-danger">{error}</p>}
@@ -124,6 +143,28 @@ export function SettingsPage() {
                     value={values[k.key] ?? ""}
                     onChange={(e) => set(k.key, e.target.value)}
                     placeholder="Not set"
+                  />
+                  <span className="text-xs text-muted">{k.hint}</span>
+                </Field>
+              ))}
+            </section>
+
+            <section className="card space-y-5 p-6">
+              <div>
+                <h2 className="text-base font-semibold text-ink">Staff / call button</h2>
+                <p className="text-sm text-muted">
+                  One-time fee users pay to activate earning via the call button
+                </p>
+              </div>
+              {STAFF_KEYS.map((k) => (
+                <Field key={k.key} label={k.label}>
+                  <Input
+                    type="number"
+                    min={0}
+                    step="1"
+                    value={values[k.key] ?? ""}
+                    onChange={(e) => set(k.key, e.target.value)}
+                    placeholder="999"
                   />
                   <span className="text-xs text-muted">{k.hint}</span>
                 </Field>
