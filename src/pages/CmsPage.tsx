@@ -1,21 +1,19 @@
 import { useState } from "react";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { CategoriesTab } from "./cms/CategoriesTab";
 import { FaqsTab } from "./cms/FaqsTab";
 import { BannersTab } from "./cms/BannersTab";
 import { CouponsTab } from "./cms/CouponsTab";
 
-type Tab = "categories" | "faqs" | "banners" | "coupons";
+type Tab = "faqs" | "banners" | "coupons";
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: "categories", label: "Categories" },
   { id: "faqs", label: "FAQs" },
   { id: "banners", label: "Banners" },
   { id: "coupons", label: "Coupons" },
 ];
 
 export function CmsPage() {
-  const [tab, setTab] = useState<Tab>("categories");
+  const [tab, setTab] = useState<Tab>("faqs");
 
   return (
     <div>
@@ -35,7 +33,6 @@ export function CmsPage() {
         ))}
       </div>
 
-      {tab === "categories" && <CategoriesTab />}
       {tab === "faqs" && <FaqsTab />}
       {tab === "banners" && <BannersTab />}
       {tab === "coupons" && <CouponsTab />}

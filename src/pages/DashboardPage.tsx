@@ -141,7 +141,7 @@ export function DashboardPage() {
           icon={BadgeCheck}
         />
         <StatCard
-          label="Online experts"
+          label="Online Staffs"
           value={formatNumber(metrics?.onlineExperts ?? 0)}
           icon={Wifi}
           tone="success"
@@ -220,7 +220,7 @@ export function DashboardPage() {
       <div className="mt-6 flex flex-wrap gap-2">
         <Link to="/experts">
           <Button variant="secondary" size="sm">
-            Review expert approvals
+            Review Staffs approvals
           </Button>
         </Link>
         <Link to="/calls">

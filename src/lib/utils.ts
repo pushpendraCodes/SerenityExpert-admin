@@ -61,18 +61,34 @@ export function normalizePhone(phone: string) {
   return `+${digits}`;
 }
 
-/** Resolve a possibly-populated user ref to a display name */
+/** Resolve a possibly-populated user ref — prefers "Real (display)" when both exist */
 export function userName(ref: User | string | undefined | null): string {
   if (!ref) return "—";
   if (typeof ref === "string") return "—";
-  return ref.name || "—";
+  const dummy = ref.name?.trim() || "—";
+  const real = ref.realName?.trim();
+  if (real && real !== dummy) return `${real} (${dummy})`;
+  if (real) return real;
+  return dummy;
+}
+
+/** Two-line labels for tables: real name + dummy display name */
+export function userNameParts(ref: User | string | undefined | null): {
+  real: string;
+  display: string;
+} {
+  if (!ref || typeof ref === "string") return { real: "—", display: "—" };
+  return {
+    real: ref.realName?.trim() || "—",
+    display: ref.name?.trim() || "—",
+  };
 }
 
 /** Resolve an expert ref (possibly populated with a nested user) to a display name */
 export function expertName(ref: Expert | string | undefined | null): string {
   if (!ref || typeof ref === "string") return "—";
   const u = ref.userId;
-  if (u && typeof u !== "string") return u.name || "—";
+  if (u && typeof u !== "string") return userName(u);
   return "—";
 }
 

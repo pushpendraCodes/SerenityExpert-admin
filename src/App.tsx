@@ -14,6 +14,7 @@ import { CallsPage } from "@/pages/CallsPage";
 import { TransactionsPage } from "@/pages/TransactionsPage";
 import { PayoutsPage } from "@/pages/PayoutsPage";
 import { CommunityPage } from "@/pages/CommunityPage";
+import { StaffApplicationsPage } from "@/pages/StaffApplicationsPage";
 import { ReportsPage } from "@/pages/ReportsPage";
 import { CmsPage } from "@/pages/CmsPage";
 import { SettingsPage } from "@/pages/SettingsPage";
@@ -42,10 +43,13 @@ function AppRoutes() {
           <Route index element={<DashboardPage />} />
           <Route path="/users" element={<UsersPage />} />
           <Route path="/experts" element={<ExpertsPage />} />
+          <Route path="/staff" element={<Navigate to="/experts" replace />} />
+          <Route path="/staff-applications" element={<StaffApplicationsPage />} />
           <Route path="/calls" element={<CallsPage />} />
           <Route path="/transactions" element={<TransactionsPage />} />
           <Route path="/payouts" element={<PayoutsPage />} />
           <Route path="/community" element={<CommunityPage />} />
+          <Route path="/journal" element={<Navigate to="/community" replace />} />
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/cms" element={<CmsPage />} />
           <Route path="/settings" element={<SettingsPage />} />

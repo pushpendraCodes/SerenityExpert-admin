@@ -44,6 +44,8 @@ export type BannerPosition = "home" | "expert_list" | "community";
 export interface User {
   _id: string;
   name: string;
+  /** Private legal / signup name — admin can see both real + display */
+  realName?: string;
   phone?: string;
   email?: string;
   avatar?: string;

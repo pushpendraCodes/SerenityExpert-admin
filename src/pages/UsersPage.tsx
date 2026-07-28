@@ -9,11 +9,11 @@ import { Button } from "@/components/ui/Button";
 import { Badge, statusTone } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
 import { Input, Select, Field } from "@/components/ui/Input";
-import { avatarFor, formatINR } from "@/lib/utils";
+import { avatarFor, formatINR, userName, userNameParts } from "@/lib/utils";
 
 const ROLE_TABS = [
   { v: "user" as const, l: "Users" },
-  { v: "expert" as const, l: "Expert" },
+  // { v: "expert" as const, l: "Expert" },
   { v: "admin" as const, l: "Admin" },
 ];
 
@@ -101,15 +101,19 @@ export function UsersPage() {
     {
       key: "name",
       header: "User",
-      render: (u) => (
-        <div className="flex items-center gap-3">
-          <img src={avatarFor(u._id || u.name)} alt="" className="h-9 w-9 rounded-full bg-surface" />
-          <div>
-            <p className="font-semibold text-ink">{u.name}</p>
-            <p className="text-xs text-muted">{u.phone || u.email || "—"}</p>
+      render: (u) => {
+        const names = userNameParts(u);
+        return (
+          <div className="flex items-center gap-3">
+            <img src={avatarFor(u._id || u.name)} alt="" className="h-9 w-9 rounded-full bg-surface" />
+            <div>
+              <p className="font-semibold text-ink">{names.real !== "—" ? names.real : names.display}</p>
+              <p className="text-xs text-muted">Display: {names.display}</p>
+              <p className="text-xs text-muted">{u.phone || u.email || "—"}</p>
+            </div>
           </div>
-        </div>
-      ),
+        );
+      },
     },
     {
       key: "role",
@@ -178,7 +182,7 @@ export function UsersPage() {
         <div className="relative flex-1 min-w-[200px]">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
           <Input
-            placeholder="Search by name, phone, or email"
+            placeholder="Search by real name, display name, phone, or email"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9"
@@ -195,7 +199,7 @@ export function UsersPage() {
       <Modal
         open={!!walletUser}
         onClose={() => setWalletUser(null)}
-        title={`Adjust wallet — ${walletUser?.name || ""}`}
+        title={`Adjust wallet — ${walletUser ? userName(walletUser) : ""}`}
         footer={
           <>
             <Button variant="ghost" onClick={() => setWalletUser(null)}>

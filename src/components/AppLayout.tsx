@@ -15,6 +15,7 @@ import {
   Menu,
   X,
   ShieldCheck,
+  ClipboardList,
 } from "lucide-react";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { logout } from "@/store/slices/authSlice";
@@ -23,11 +24,12 @@ import { cn, avatarFor } from "@/lib/utils";
 const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/users", label: "Users", icon: Users },
-  { to: "/experts", label: "Experts", icon: BadgeCheck },
+  { to: "/experts", label: "Staff", icon: BadgeCheck },
+  { to: "/staff-applications", label: "Staff Applications", icon: ClipboardList },
   { to: "/calls", label: "Live Calls", icon: PhoneCall },
   { to: "/transactions", label: "Transactions", icon: Wallet },
   { to: "/payouts", label: "Payouts", icon: Banknote },
-  { to: "/community", label: "Community", icon: MessageSquareWarning },
+  { to: "/community", label: "Post Moderation", icon: MessageSquareWarning },
   { to: "/reports", label: "Reports", icon: Flag },
   { to: "/cms", label: "CMS", icon: LayoutTemplate },
   { to: "/settings", label: "Settings", icon: Settings },
@@ -51,7 +53,7 @@ export function AppLayout() {
           <ShieldCheck className="h-5 w-5" />
         </div>
         <div>
-          <p className="text-sm font-bold text-ink">SerenityExpert</p>
+          <p className="text-sm font-bold text-ink">Serenity Line</p>
           <p className="text-xs text-muted">Super Admin</p>
         </div>
       </div>

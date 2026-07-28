@@ -77,7 +77,7 @@ export function PayoutsPage() {
   };
 
   const columns: Column<Payout>[] = [
-    { key: "expert", header: "Expert", render: (p) => expertName(p.expertId) },
+    { key: "expert", header: "Staff", render: (p) => expertName(p.expertId) },
     { key: "amount", header: "Gross", render: (p) => formatINR(p.amount) },
     { key: "commission", header: "Commission", render: (p) => formatINR(p.commission) },
     {
@@ -100,7 +100,7 @@ export function PayoutsPage() {
   return (
     <div>
       <PageHeader
-        title="Expert Payouts"
+        title="Staff Payouts"
         subtitle="Weekly auto-payouts or manual batch — already settled periods are never paid twice"
         actions={
           <Button onClick={runBatch} loading={processing}>
@@ -129,7 +129,7 @@ export function PayoutsPage() {
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Gross revenue" value={formatINR(report?.grossRevenue ?? 0)} icon={IndianRupee} tone="success" hint={`${report?.totalCalls ?? 0} completed calls`} />
         <StatCard label="Platform commission" value={formatINR(report?.platformCommission ?? 0)} icon={Percent} />
-        <StatCard label="Expert earnings" value={formatINR(report?.expertEarnings ?? 0)} icon={Wallet} tone="warning" />
+        <StatCard label="Staff earnings" value={formatINR(report?.expertEarnings ?? 0)} icon={Wallet} tone="warning" />
         <StatCard label="Refunds issued" value={formatINR(report?.refundsTotal ?? 0)} icon={Undo2} tone="danger" hint={`${report?.refundCount ?? 0} refunds`} />
       </div>
 

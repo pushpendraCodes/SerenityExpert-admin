@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
 import { Input, Field } from "@/components/ui/Input";
-import { avatarFor, formatINR, normalizePhone } from "@/lib/utils";
+import { avatarFor, formatINR, normalizePhone, userName, userNameParts } from "@/lib/utils";
 
 function expertUser(e: Expert): User | null {
   return e.userId && typeof e.userId !== "string" ? e.userId : null;
@@ -161,7 +161,9 @@ export function ExpertsPage() {
       errs.name = "Name must be at least 2 characters";
     if (requireMobile && !/^\+?[1-9]\d{9,14}$/.test(normalizePhone(f.mobile)))
       errs.mobile = "Enter a valid mobile number";
-    if (cats.length === 0) errs.categories = "Select at least one category";
+    if (cats.length === 0) {
+      /* categories optional after pivot */
+    }
     if (f.experience !== "" && Number(f.experience) < 0)
       errs.experience = "Experience cannot be negative";
     const price = Number(f.pricePerMinute);
@@ -273,6 +275,7 @@ export function ExpertsPage() {
       header: "Expert",
       render: (e) => {
         const u = expertUser(e);
+        const names = userNameParts(u);
         return (
           <div className="flex items-center gap-3">
             <img
@@ -281,7 +284,8 @@ export function ExpertsPage() {
               className="h-9 w-9 rounded-full bg-surface"
             />
             <div>
-              <p className="font-semibold text-ink">{u?.name || "Expert"}</p>
+              <p className="font-semibold text-ink">{names.real !== "—" ? names.real : names.display}</p>
+              <p className="text-xs text-muted">Display: {names.display}</p>
               <p className="text-xs text-muted">{u?.phone || e.mobile || "—"}</p>
             </div>
           </div>
@@ -385,11 +389,11 @@ export function ExpertsPage() {
   return (
     <div>
       <PageHeader
-        title="Experts"
-        subtitle="Approve, verify, and manage expert accounts"
+        title="Staff"
+        subtitle="Manage staff profiles — create, approve, and set rates"
         actions={
           <Button size="sm" onClick={openCreate}>
-            <Plus className="h-4 w-4" /> Add expert
+            <Plus className="h-4 w-4" /> Add staff
           </Button>
         }
       />
@@ -405,7 +409,7 @@ export function ExpertsPage() {
         >
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
           <Input
-            placeholder="Search by name, phone or email"
+            placeholder="Search by real name, display name, phone or email"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9"
@@ -450,7 +454,7 @@ export function ExpertsPage() {
       <Modal
         open={!!target}
         onClose={() => setTarget(null)}
-        title={`Review — ${expertUser(target || ({} as Expert))?.name || "Expert"}`}
+        title={`Review — ${userName(expertUser(target || ({} as Expert))) || "Expert"}`}
         footer={
           <>
             <Button variant="danger" onClick={() => decide(false)} loading={saving}>
@@ -585,7 +589,7 @@ export function ExpertsPage() {
       <Modal
         open={!!editTarget}
         onClose={() => setEditTarget(null)}
-        title={`Edit — ${expertUser(editTarget || ({} as Expert))?.name || "Expert"}`}
+        title={`Edit — ${userName(expertUser(editTarget || ({} as Expert))) || "Expert"}`}
         footer={
           <>
             <Button variant="ghost" onClick={() => setEditTarget(null)}>
