@@ -40,12 +40,12 @@ export function LoginPage() {
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/15">
             <ShieldCheck className="h-6 w-6" />
           </div>
-          <span className="text-lg font-bold">SerenityExpert</span>
+          <span className="text-lg font-bold">Serenity Line</span>
         </div>
         <div>
           <h1 className="text-4xl font-extrabold leading-tight">Super Admin Panel</h1>
           <p className="mt-4 max-w-md text-white/80">
-            Manage users, experts, live calls, payouts, community moderation, and platform
+            Manage users, staff, live calls, payouts, community moderation, and platform
             content — all in one place.
           </p>
         </div>

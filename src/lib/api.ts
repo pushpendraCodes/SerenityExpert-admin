@@ -3,40 +3,105 @@ import type { ApiResponse, PaginatedResponse } from "@/types";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
+const ACCESS_KEY = "adminAccessToken";
+const REFRESH_KEY = "adminRefreshToken";
+const USER_KEY = "adminUser";
+
+/** Clear old localStorage keys — admin now uses sessionStorage only. */
+export function clearLegacyAdminStorage() {
+  localStorage.removeItem(ACCESS_KEY);
+  localStorage.removeItem(REFRESH_KEY);
+  localStorage.removeItem(USER_KEY);
+}
+
+export function setAdminSessionTokens(accessToken: string | null, refreshToken: string | null) {
+  clearLegacyAdminStorage();
+  if (accessToken) sessionStorage.setItem(ACCESS_KEY, accessToken);
+  else sessionStorage.removeItem(ACCESS_KEY);
+  if (refreshToken) sessionStorage.setItem(REFRESH_KEY, refreshToken);
+  else sessionStorage.removeItem(REFRESH_KEY);
+}
+
+export function setAdminSessionUser(userJson: string | null) {
+  clearLegacyAdminStorage();
+  if (userJson) sessionStorage.setItem(USER_KEY, userJson);
+  else sessionStorage.removeItem(USER_KEY);
+}
+
+export function clearAdminSessionTokens() {
+  sessionStorage.removeItem(ACCESS_KEY);
+  sessionStorage.removeItem(REFRESH_KEY);
+  sessionStorage.removeItem(USER_KEY);
+  clearLegacyAdminStorage();
+}
+
+export function getAdminAccessToken() {
+  return sessionStorage.getItem(ACCESS_KEY);
+}
+
+export function getAdminRefreshToken() {
+  return sessionStorage.getItem(REFRESH_KEY);
+}
+
+export function getAdminSessionUserRaw() {
+  return sessionStorage.getItem(USER_KEY);
+}
+
 export const api = axios.create({
   baseURL: API_URL,
   headers: { "Content-Type": "application/json" },
 });
 
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  const token = localStorage.getItem("adminAccessToken");
+  const token = getAdminAccessToken();
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
 let refreshing: Promise<string | null> | null = null;
 
-async function refreshAccessToken(): Promise<string | null> {
-  const refreshToken = localStorage.getItem("adminRefreshToken");
+/** Refresh access token. Shared so boot + 401 interceptor use one in-flight request. */
+export async function refreshAccessToken(): Promise<string | null> {
+  const refreshToken = getAdminRefreshToken();
   if (!refreshToken) return null;
-  try {
-    const { data } = await axios.post<ApiResponse<{ accessToken: string; refreshToken: string }>>(
-      `${API_URL}/auth/refresh`,
-      { refreshToken }
-    );
-    if (data.data?.accessToken) {
-      localStorage.setItem("adminAccessToken", data.data.accessToken);
-      if (data.data.refreshToken) {
-        localStorage.setItem("adminRefreshToken", data.data.refreshToken);
+
+  if (!refreshing) {
+    refreshing = (async () => {
+      try {
+        const { data } = await axios.post<
+          ApiResponse<{ accessToken: string; refreshToken: string }>
+        >(`${API_URL}/auth/refresh`, { refreshToken });
+        if (data.data?.accessToken) {
+          setAdminSessionTokens(
+            data.data.accessToken,
+            data.data.refreshToken || refreshToken
+          );
+          return data.data.accessToken;
+        }
+        clearAdminSessionTokens();
+        return null;
+      } catch {
+        clearAdminSessionTokens();
+        return null;
+      } finally {
+        refreshing = null;
       }
-      return data.data.accessToken;
-    }
-  } catch {
-    localStorage.removeItem("adminAccessToken");
-    localStorage.removeItem("adminRefreshToken");
-    localStorage.removeItem("adminUser");
+    })();
   }
-  return null;
+
+  return refreshing;
+}
+
+/** Ensure usable access token before protected calls (on tab boot). */
+export async function ensureFreshSession(): Promise<boolean> {
+  const accessToken = getAdminAccessToken();
+  const refreshToken = getAdminRefreshToken();
+  if (!accessToken && !refreshToken) return false;
+  if (refreshToken) {
+    const token = await refreshAccessToken();
+    return Boolean(token);
+  }
+  return Boolean(accessToken);
 }
 
 api.interceptors.response.use(
@@ -45,12 +110,7 @@ api.interceptors.response.use(
     const original = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
     if (error.response?.status === 401 && original && !original._retry) {
       original._retry = true;
-      refreshing =
-        refreshing ??
-        refreshAccessToken().finally(() => {
-          refreshing = null;
-        });
-      const token = await refreshing;
+      const token = await refreshAccessToken();
       if (token) {
         original.headers.Authorization = `Bearer ${token}`;
         return api(original);
