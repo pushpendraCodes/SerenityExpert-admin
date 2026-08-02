@@ -1,6 +1,6 @@
 import { type FormEvent, useCallback, useEffect, useState } from "react";
-import { Search, Check, X, Star, Pencil } from "lucide-react";
-import { apiGet, apiGetPaginated, apiPut, getErrorMessage, getFieldErrors } from "@/lib/api";
+import { Search, Check, X, Star, Pencil, Plus } from "lucide-react";
+import { apiGet, apiGetPaginated, apiPost, apiPut, getErrorMessage, getFieldErrors } from "@/lib/api";
 import type { Expert, Pagination as PaginationType, PlatformSettings, User } from "@/types";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { DataTable, type Column } from "@/components/ui/DataTable";
@@ -8,8 +8,16 @@ import { Pagination } from "@/components/ui/Pagination";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
-import { Input, Field } from "@/components/ui/Input";
+import { Input, Select, Field } from "@/components/ui/Input";
 import { avatarFor, formatDate, formatINR, userName, userNameParts } from "@/lib/utils";
+
+const GENDER_OPTIONS = [
+  { value: "", label: "Select gender" },
+  { value: "male", label: "Male" },
+  { value: "female", label: "Female" },
+  { value: "other", label: "Other" },
+  { value: "prefer_not_to_say", label: "Prefer not to say" },
+] as const;
 
 function expertUser(e: Expert): User | null {
   return e.userId && typeof e.userId !== "string" ? e.userId : null;
@@ -45,6 +53,55 @@ const EMPTY_EDIT: EditForm = {
   upiId: "",
 };
 
+type AddForm = {
+  /** Public dummy / display handle */
+  dummyName: string;
+  /** Private real name */
+  realName: string;
+  mobile: string;
+  gender: string;
+  dob: string;
+  country: string;
+  state: string;
+  city: string;
+  pricePerMinute: string;
+  commissionPercent: string;
+  accountName: string;
+  accountNumber: string;
+  ifscCode: string;
+  bankName: string;
+  upiId: string;
+  approveImmediately: boolean;
+};
+
+const EMPTY_ADD: AddForm = {
+  dummyName: "",
+  realName: "",
+  mobile: "",
+  gender: "",
+  dob: "",
+  country: "",
+  state: "",
+  city: "",
+  pricePerMinute: "",
+  commissionPercent: "",
+  accountName: "",
+  accountNumber: "",
+  ifscCode: "",
+  bankName: "",
+  upiId: "",
+  approveImmediately: true,
+};
+
+function makeDummyName() {
+  const adj = ["Calm", "Bright", "Swift", "Kind", "Bold", "Quiet", "Lucky", "Cosmic"];
+  const noun = ["River", "Cloud", "Fox", "Star", "Wave", "Leaf", "Nova", "Spark"];
+  const a = adj[Math.floor(Math.random() * adj.length)];
+  const n = noun[Math.floor(Math.random() * noun.length)];
+  const num = Math.floor(Math.random() * 9999) + 1;
+  return `${a}${n}${num}`;
+}
+
 export function ExpertsPage() {
   const [rows, setRows] = useState<Expert[]>([]);
   const [pagination, setPagination] = useState<PaginationType | null>(null);
@@ -66,6 +123,10 @@ export function ExpertsPage() {
   const [editTarget, setEditTarget] = useState<Expert | null>(null);
   const [editForm, setEditForm] = useState<EditForm>(EMPTY_EDIT);
   const [editErrors, setEditErrors] = useState<Record<string, string>>({});
+
+  const [addOpen, setAddOpen] = useState(false);
+  const [addForm, setAddForm] = useState<AddForm>(EMPTY_ADD);
+  const [addErrors, setAddErrors] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -223,6 +284,102 @@ export function ExpertsPage() {
     }
   };
 
+  const openAdd = () => {
+    setAddErrors({});
+    setAddForm({
+      ...EMPTY_ADD,
+      dummyName: makeDummyName(),
+      pricePerMinute: String(priceLimits.default),
+      commissionPercent: String(priceLimits.commission),
+    });
+    setAddOpen(true);
+  };
+
+  const validateAdd = (f: AddForm): Record<string, string> => {
+    const errs: Record<string, string> = {};
+    if (!f.dummyName.trim() || f.dummyName.trim().length < 2) {
+      errs.dummyName = "Dummy name must be at least 2 characters";
+    }
+    if (!f.realName.trim() || f.realName.trim().length < 2) {
+      errs.realName = "Real name is required";
+    }
+    const mobile = f.mobile.trim().replace(/\s+/g, "");
+    if (!/^\+?[1-9]\d{9,14}$/.test(mobile)) {
+      errs.mobile = "Enter a valid mobile number (e.g. 9876543210 or +919876543210)";
+    }
+    if (!f.gender) errs.gender = "Select a gender";
+    if (!f.dob) {
+      errs.dob = "Date of birth is required";
+    } else if (Number.isNaN(Date.parse(f.dob))) {
+      errs.dob = "Enter a valid date of birth";
+    } else {
+      const age = (Date.now() - new Date(f.dob).getTime()) / (365.25 * 24 * 3600 * 1000);
+      if (age < 13 || age > 120) errs.dob = "Staff must be at least 13 years old";
+    }
+    if (!f.country.trim() || f.country.trim().length < 2) errs.country = "Country is required";
+    if (!f.state.trim() || f.state.trim().length < 2) errs.state = "State is required";
+    if (!f.city.trim() || f.city.trim().length < 2) errs.city = "City is required";
+    const priceVal = Number(f.pricePerMinute);
+    if (f.pricePerMinute === "" || Number.isNaN(priceVal)) {
+      errs.pricePerMinute = "Enter a valid price";
+    } else if (priceVal < priceLimits.min || priceVal > priceLimits.max) {
+      errs.pricePerMinute = `Price must be between ₹${priceLimits.min} and ₹${priceLimits.max} per minute`;
+    }
+    const commissionVal = Number(f.commissionPercent);
+    if (Number.isNaN(commissionVal) || commissionVal < 0 || commissionVal > 100) {
+      errs.commissionPercent = "Commission must be between 0 and 100";
+    }
+    return errs;
+  };
+
+  const saveAdd = async (ev: FormEvent) => {
+    ev.preventDefault();
+    const errs = validateAdd(addForm);
+    setAddErrors(errs);
+    if (Object.keys(errs).length > 0) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const bankPayload = {
+        accountName: addForm.accountName.trim(),
+        accountNumber: addForm.accountNumber.trim(),
+        ifscCode: addForm.ifscCode.trim(),
+        bankName: addForm.bankName.trim(),
+        upiId: addForm.upiId.trim() || undefined,
+      };
+      const hasBank = Boolean(
+        bankPayload.accountName ||
+          bankPayload.accountNumber ||
+          bankPayload.ifscCode ||
+          bankPayload.bankName ||
+          bankPayload.upiId
+      );
+      await apiPost("/admin/experts", {
+        name: addForm.dummyName.trim(),
+        realName: addForm.realName.trim(),
+        mobile: addForm.mobile.trim().replace(/\s+/g, ""),
+        gender: addForm.gender,
+        dob: addForm.dob,
+        country: addForm.country.trim(),
+        state: addForm.state.trim(),
+        city: addForm.city.trim(),
+        pricePerMinute: Number(addForm.pricePerMinute),
+        commissionPercent: Number(addForm.commissionPercent),
+        approveImmediately: addForm.approveImmediately,
+        ...(hasBank ? { bankDetails: bankPayload } : {}),
+      });
+      setAddOpen(false);
+      setAddErrors({});
+      load();
+    } catch (e) {
+      const fe = getFieldErrors(e);
+      if (Object.keys(fe).length === 0) fe._general = getErrorMessage(e);
+      setAddErrors(fe);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const columns: Column<Expert>[] = [
     {
       key: "name",
@@ -302,11 +459,26 @@ export function ExpertsPage() {
     });
   };
 
+  const setAddField = <K extends keyof AddForm>(k: K, v: AddForm[K]) => {
+    setAddForm((f) => ({ ...f, [k]: v }));
+    setAddErrors((prev) => {
+      if (!prev[k as string]) return prev;
+      const next = { ...prev };
+      delete next[k as string];
+      return next;
+    });
+  };
+
   return (
     <div>
       <PageHeader
         title="Staff"
         subtitle="Review applications, set rates, and manage payout bank details"
+        actions={
+          <Button onClick={openAdd}>
+            <Plus className="h-4 w-4" /> Add staff
+          </Button>
+        }
       />
 
       <div className="mb-4 flex flex-wrap gap-2">
@@ -538,6 +710,187 @@ export function ExpertsPage() {
               <Input
                 value={editForm.upiId}
                 onChange={(e) => setEditField("upiId", e.target.value)}
+                placeholder="name@upi"
+              />
+            </Field>
+          </div>
+        </form>
+      </Modal>
+
+      <Modal
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        title="Add staff"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setAddOpen(false)}>
+              Cancel
+            </Button>
+            <Button form="add-staff" type="submit" loading={saving}>
+              Create staff
+            </Button>
+          </>
+        }
+      >
+        <form id="add-staff" onSubmit={saveAdd} className="space-y-3" noValidate>
+          {addErrors._general && (
+            <p className="rounded-lg bg-danger/10 px-3 py-2 text-sm font-medium text-danger">
+              {addErrors._general}
+            </p>
+          )}
+          <p className="text-sm text-muted">
+            Creates a staff account for the staff portal. If this phone already has a user account,
+            staff access is linked to it (dual portal).
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Dummy name (public)" error={addErrors.dummyName}>
+              <div className="flex gap-2">
+                <Input
+                  value={addForm.dummyName}
+                  onChange={(e) => setAddField("dummyName", e.target.value)}
+                  placeholder="CalmRiver42"
+                  required
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setAddField("dummyName", makeDummyName())}
+                >
+                  Generate
+                </Button>
+              </div>
+              <span className="text-xs text-muted">Shown on calls / website — not the real name</span>
+            </Field>
+            <Field label="Real name (private)" error={addErrors.realName}>
+              <Input
+                value={addForm.realName}
+                onChange={(e) => setAddField("realName", e.target.value)}
+                placeholder="Full legal name"
+                required
+              />
+            </Field>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Mobile" error={addErrors.mobile}>
+              <Input
+                value={addForm.mobile}
+                onChange={(e) => setAddField("mobile", e.target.value)}
+                placeholder="9876543210"
+                required
+              />
+            </Field>
+            <Field label="Gender" error={addErrors.gender}>
+              <Select
+                value={addForm.gender}
+                onChange={(e) => setAddField("gender", e.target.value)}
+                required
+              >
+                {GENDER_OPTIONS.map((g) => (
+                  <option key={g.value || "empty"} value={g.value}>
+                    {g.label}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          </div>
+          <Field label="Date of birth" error={addErrors.dob}>
+            <Input
+              type="date"
+              value={addForm.dob}
+              onChange={(e) => setAddField("dob", e.target.value)}
+              max={new Date().toISOString().split("T")[0]}
+              required
+            />
+          </Field>
+          <div className="grid grid-cols-3 gap-3">
+            <Field label="Country" error={addErrors.country}>
+              <Input
+                value={addForm.country}
+                onChange={(e) => setAddField("country", e.target.value)}
+                placeholder="India"
+                required
+              />
+            </Field>
+            <Field label="State" error={addErrors.state}>
+              <Input
+                value={addForm.state}
+                onChange={(e) => setAddField("state", e.target.value)}
+                placeholder="Maharashtra"
+                required
+              />
+            </Field>
+            <Field label="City" error={addErrors.city}>
+              <Input
+                value={addForm.city}
+                onChange={(e) => setAddField("city", e.target.value)}
+                placeholder="Mumbai"
+                required
+              />
+            </Field>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Price / min (₹)" error={addErrors.pricePerMinute}>
+              <Input
+                type="number"
+                min={priceLimits.min}
+                max={priceLimits.max}
+                value={addForm.pricePerMinute}
+                onChange={(e) => setAddField("pricePerMinute", e.target.value)}
+              />
+              <span className="text-xs text-muted">{priceHint}</span>
+            </Field>
+            <Field label="Commission (%)" error={addErrors.commissionPercent}>
+              <Input
+                type="number"
+                value={addForm.commissionPercent}
+                onChange={(e) => setAddField("commissionPercent", e.target.value)}
+              />
+            </Field>
+          </div>
+
+          <label className="flex items-center gap-2 rounded-xl border border-border bg-surface/50 px-3 py-2.5 text-sm text-ink">
+            <input
+              type="checkbox"
+              checked={addForm.approveImmediately}
+              onChange={(e) => setAddField("approveImmediately", e.target.checked)}
+              className="h-4 w-4 rounded border-border text-primary"
+            />
+            Approve immediately (can log in to staff portal)
+          </label>
+
+          <h3 className="pt-1 text-sm font-bold text-ink">
+            Bank details <span className="font-normal text-muted">(optional)</span>
+          </h3>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Account name" error={addErrors.accountName}>
+              <Input
+                value={addForm.accountName}
+                onChange={(e) => setAddField("accountName", e.target.value)}
+              />
+            </Field>
+            <Field label="Account number" error={addErrors.accountNumber}>
+              <Input
+                value={addForm.accountNumber}
+                onChange={(e) => setAddField("accountNumber", e.target.value)}
+              />
+            </Field>
+            <Field label="IFSC" error={addErrors.ifscCode}>
+              <Input
+                value={addForm.ifscCode}
+                onChange={(e) => setAddField("ifscCode", e.target.value)}
+              />
+            </Field>
+            <Field label="Bank name" error={addErrors.bankName}>
+              <Input
+                value={addForm.bankName}
+                onChange={(e) => setAddField("bankName", e.target.value)}
+              />
+            </Field>
+            <Field label="UPI ID" error={addErrors.upiId}>
+              <Input
+                value={addForm.upiId}
+                onChange={(e) => setAddField("upiId", e.target.value)}
                 placeholder="name@upi"
               />
             </Field>

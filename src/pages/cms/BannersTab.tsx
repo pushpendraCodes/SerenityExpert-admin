@@ -15,7 +15,6 @@ const empty = {
   mediaType: "video" as MediaType,
   imageUrl: "",
   videoUrl: "",
-  link: "/online",
   tagline: "",
   badge: "",
   position: "home" as BannerPosition,
@@ -63,7 +62,6 @@ export function BannersTab() {
       mediaType: b.mediaType || (b.videoUrl ? "video" : "image"),
       imageUrl: b.imageUrl || "",
       videoUrl: b.videoUrl || "",
-      link: b.link || "",
       tagline: b.tagline || "",
       badge: b.badge || "",
       position: b.position,
@@ -100,6 +98,14 @@ export function BannersTab() {
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
+    if (form.mediaType === "video" && !form.videoUrl) {
+      setError("Please upload a video before saving.");
+      return;
+    }
+    if (form.mediaType === "image" && !form.imageUrl) {
+      setError("Please upload an image before saving.");
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -108,7 +114,6 @@ export function BannersTab() {
         mediaType: form.mediaType,
         imageUrl: form.imageUrl || "",
         videoUrl: form.mediaType === "video" ? form.videoUrl : undefined,
-        link: form.link || undefined,
         tagline: form.tagline || undefined,
         badge: form.badge || undefined,
         position: form.position,
@@ -265,38 +270,15 @@ export function BannersTab() {
             </Button>
             <span className="text-xs text-muted">
               {form.mediaType === "video"
-                ? "MP4/WebM/MOV · max 60s · used as home feed ad video"
-                : "JPEG/PNG/WebP · max 10MB"}
+                ? form.videoUrl
+                  ? "Video uploaded ✓"
+                  : "MP4/WebM/MOV · max 60s · used as home feed ad video"
+                : form.imageUrl
+                  ? "Image uploaded ✓"
+                  : "JPEG/PNG/WebP · max 10MB"}
             </span>
           </Field>
 
-          {form.mediaType === "video" ? (
-            <Field label="Video URL">
-              <Input
-                value={form.videoUrl}
-                onChange={(e) => set("videoUrl", e.target.value)}
-                placeholder="Uploads fill this automatically"
-                required
-              />
-            </Field>
-          ) : null}
-
-          <Field label={form.mediaType === "video" ? "Poster image URL (optional)" : "Image URL"}>
-            <Input
-              value={form.imageUrl}
-              onChange={(e) => set("imageUrl", e.target.value)}
-              placeholder={form.mediaType === "video" ? "Auto from video upload" : "https://…"}
-              required={form.mediaType === "image"}
-            />
-          </Field>
-
-          <Field label="Link (tap destination)">
-            <Input
-              value={form.link}
-              onChange={(e) => set("link", e.target.value)}
-              placeholder="/online or https://…"
-            />
-          </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Tagline (optional)">
               <Input

@@ -29,6 +29,14 @@ const STAFF_KEYS: { key: string; label: string; hint: string }[] = [
   },
 ];
 
+const CALLING_KEYS: { key: string; label: string; hint: string }[] = [
+  {
+    key: "free_calling_minutes",
+    label: "Free calling time (minutes)",
+    hint: "Granted to new users on signup, and shown on the website. Saving a lower value also caps leftover free minutes for existing users.",
+  },
+];
+
 const RETENTION_KEYS: { key: string; label: string; hint: string }[] = [
   {
     key: "chat_retention_days",
@@ -47,7 +55,7 @@ const RETENTION_KEYS: { key: string; label: string; hint: string }[] = [
   },
 ];
 
-const ALL_KEYS = [...PRICING_KEYS, ...STAFF_KEYS, ...RETENTION_KEYS];
+const ALL_KEYS = [...PRICING_KEYS, ...STAFF_KEYS, ...CALLING_KEYS, ...RETENTION_KEYS];
 
 export function SettingsPage() {
   const [values, setValues] = useState<PlatformSettings>({});
@@ -100,6 +108,17 @@ export function SettingsPage() {
       return;
     }
 
+    const freeMins = Number(values.free_calling_minutes);
+    if (
+      values.free_calling_minutes !== undefined &&
+      values.free_calling_minutes !== "" &&
+      (!Number.isFinite(freeMins) || freeMins < 0)
+    ) {
+      setError("Free calling time: enter a valid number of minutes (0 or more)");
+      setSaving(false);
+      return;
+    }
+
     try {
       const settings = ALL_KEYS.map((k) => ({ key: k.key, value: String(values[k.key] ?? "") })).filter(
         (s) => s.value !== ""
@@ -117,7 +136,7 @@ export function SettingsPage() {
     <div>
       <PageHeader
         title="Settings"
-        subtitle="Commission, staff fees, pricing, and data retention rules"
+        subtitle="Commission, free calling, staff fees, pricing, and data retention rules"
       />
 
       {error && <p className="mb-3 text-sm text-danger">{error}</p>}
@@ -143,6 +162,28 @@ export function SettingsPage() {
                     value={values[k.key] ?? ""}
                     onChange={(e) => set(k.key, e.target.value)}
                     placeholder="Not set"
+                  />
+                  <span className="text-xs text-muted">{k.hint}</span>
+                </Field>
+              ))}
+            </section>
+
+            <section className="card space-y-5 p-6">
+              <div>
+                <h2 className="text-base font-semibold text-ink">Free calling</h2>
+                <p className="text-sm text-muted">
+                  Promotional free minutes for new users — applied automatically on voice calls
+                </p>
+              </div>
+              {CALLING_KEYS.map((k) => (
+                <Field key={k.key} label={k.label}>
+                  <Input
+                    type="number"
+                    min={0}
+                    step="1"
+                    value={values[k.key] ?? ""}
+                    onChange={(e) => set(k.key, e.target.value)}
+                    placeholder="5"
                   />
                   <span className="text-xs text-muted">{k.hint}</span>
                 </Field>
